@@ -65,179 +65,177 @@
     </div>
 
     <script>
-        // Get WebSocket URL dynamically based on current location
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+        let ws;
         
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
-        const chatMessages = document.getElementById('chat-messages');
-        const messageInput = document.getElementById('message-input');
-        const sendButton = document.getElementById('send-btn');
-        const usernameInput = document.getElementById('username-input');
-        const usernameButton = document.getElementById('username-btn');
-        const clearButton = document.getElementById('clear-btn');
-
-        // Drawing variables
-        let isDrawing = false;
-        let lastX = 0;
-        let lastY = 0;
-
-        // Set up canvas
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = 2;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-
-        // Function to clear canvas
-        function clearCanvas() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-        }
-
-        // WebSocket message handling
-        ws.onmessage = (event) => {
-            try {
-                const { type, data } = JSON.parse(event.data);
-                
-                if (typeof data === 'string' && data.startsWith('[')) {
-                    // Chat message
-                    const messageDiv = document.createElement('div');
-                    messageDiv.textContent = data;
-                    chatMessages.appendChild(messageDiv);
-                    chatMessages.scrollTop = chatMessages.scrollHeight;
-                } else if (data.type === 'draw') {
-                    // Drawing data from other users
-                    drawRemoteAction(data);
-                } else if (data.type === 'clear') {
-                    // Clear canvas command from other users
-                    clearCanvas();
-                }
-            } catch (error) {
-                console.error('Error processing message:', error);
-            }
-        };
-
-        function drawRemoteAction(data) {
-            const { x, y, isStarting } = data;
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws`;
             
-            if (isStarting) {
+            console.log('Connecting to WebSocket at:', wsUrl);
+            ws = new WebSocket(wsUrl);
+            
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            const chatMessages = document.getElementById('chat-messages');
+            const messageInput = document.getElementById('message-input');
+            const sendButton = document.getElementById('send-btn');
+            const usernameInput = document.getElementById('username-input');
+            const usernameButton = document.getElementById('username-btn');
+            const clearButton = document.getElementById('clear-btn');
+
+            // Drawing variables
+            let isDrawing = false;
+            let lastX = 0;
+            let lastY = 0;
+
+            // Set up canvas
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            // WebSocket message handling
+            ws.onmessage = (event) => {
+                try {
+                    const { type, data } = JSON.parse(event.data);
+                    
+                    if (typeof data === 'string' && data.startsWith('[')) {
+                        // Chat message
+                        const messageDiv = document.createElement('div');
+                        messageDiv.textContent = data;
+                        chatMessages.appendChild(messageDiv);
+                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                    } else if (data.type === 'draw') {
+                        // Handle drawing data from other users
+                        const { x, y, isStarting } = data;
+                        
+                        if (isStarting) {
+                            ctx.beginPath();
+                            ctx.moveTo(x, y);
+                        } else {
+                            ctx.lineTo(x, y);
+                            ctx.stroke();
+                        }
+                    } else if (data.type === 'clear') {
+                        // Clear canvas command from other users
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    }
+                } catch (error) {
+                    console.error('Error processing message:', error);
+                }
+            };
+
+            ws.onclose = () => {
+                console.log('WebSocket connection closed. Attempting to reconnect...');
+                setTimeout(connectWebSocket, 3000);
+            };
+
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+            };
+
+            // Drawing event listeners
+            function startDrawing(e) {
+                isDrawing = true;
+                const rect = canvas.getBoundingClientRect();
+                lastX = e.clientX - rect.left;
+                lastY = e.clientY - rect.top;
+
+                // Start new path locally
                 ctx.beginPath();
-                ctx.moveTo(x, y);
-            } else {
-                ctx.lineTo(x, y);
+                ctx.moveTo(lastX, lastY);
+
+                // Send starting point
+                ws.send(JSON.stringify({
+                    type: 'draw',
+                    x: lastX,
+                    y: lastY,
+                    isStarting: true
+                }));
+            }
+
+            function draw(e) {
+                if (!isDrawing) return;
+
+                const rect = canvas.getBoundingClientRect();
+                const currentX = e.clientX - rect.left;
+                const currentY = e.clientY - rect.top;
+
+                // Draw line locally
+                ctx.lineTo(currentX, currentY);
                 ctx.stroke();
+
+                // Send drawing data
+                ws.send(JSON.stringify({
+                    type: 'draw',
+                    x: currentX,
+                    y: currentY,
+                    isStarting: false
+                }));
+
+                lastX = currentX;
+                lastY = currentY;
             }
-        }
 
-        function startDrawing(e) {
-            isDrawing = true;
-            const rect = canvas.getBoundingClientRect();
-            lastX = e.clientX - rect.left;
-            lastY = e.clientY - rect.top;
-
-            // Start new path locally
-            ctx.beginPath();
-            ctx.moveTo(lastX, lastY);
-
-            // Send starting point
-            ws.send(JSON.stringify({
-                type: 'draw',
-                x: lastX,
-                y: lastY,
-                isStarting: true
-            }));
-        }
-
-        function draw(e) {
-            if (!isDrawing) return;
-
-            const rect = canvas.getBoundingClientRect();
-            const currentX = e.clientX - rect.left;
-            const currentY = e.clientY - rect.top;
-
-            // Draw line locally
-            ctx.lineTo(currentX, currentY);
-            ctx.stroke();
-
-            // Send drawing data
-            ws.send(JSON.stringify({
-                type: 'draw',
-                x: currentX,
-                y: currentY,
-                isStarting: false
-            }));
-
-            lastX = currentX;
-            lastY = currentY;
-        }
-
-        function stopDrawing() {
-            if (isDrawing) {
-                isDrawing = false;
-                ctx.closePath();
+            function stopDrawing() {
+                if (isDrawing) {
+                    isDrawing = false;
+                    ctx.closePath();
+                }
             }
+
+            // Drawing event listeners
+            canvas.addEventListener('mousedown', startDrawing);
+            canvas.addEventListener('mousemove', draw);
+            canvas.addEventListener('mouseup', stopDrawing);
+            canvas.addEventListener('mouseout', stopDrawing);
+
+            // Chat functionality
+            function sendMessage() {
+                const content = messageInput.value.trim();
+                if (!content || ws.readyState !== WebSocket.OPEN) return;
+
+                const message = {
+                    type: 'text',
+                    content: content
+                };
+                ws.send(JSON.stringify(message));
+                messageInput.value = '';
+            }
+
+            sendButton.addEventListener('click', sendMessage);
+            messageInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') sendMessage();
+            });
+
+            // Username change functionality
+            function changeUsername() {
+                const newUsername = usernameInput.value.trim();
+                if (!newUsername || ws.readyState !== WebSocket.OPEN) return;
+
+                const message = {
+                    type: 'username',
+                    username: newUsername
+                };
+                ws.send(JSON.stringify(message));
+                usernameInput.value = '';
+            }
+
+            usernameButton.addEventListener('click', changeUsername);
+
+            // Clear canvas functionality
+            clearButton.addEventListener('click', () => {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                if (ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
+                        type: 'clear'
+                    }));
+                }
+            });
         }
 
-        // Drawing event listeners
-        canvas.addEventListener('mousedown', startDrawing);
-        canvas.addEventListener('mousemove', draw);
-        canvas.addEventListener('mouseup', stopDrawing);
-        canvas.addEventListener('mouseout', stopDrawing);
-
-        // Chat functionality
-        sendButton.addEventListener('click', sendMessage);
-        messageInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') sendMessage();
-        });
-
-        function sendMessage() {
-            const content = messageInput.value.trim();
-            if (!content) return;
-
-            const message = {
-                type: 'text',
-                content: content
-            };
-            ws.send(JSON.stringify(message));
-            messageInput.value = '';
-        }
-
-        // Username change functionality
-        usernameButton.addEventListener('click', changeUsername);
-
-        function changeUsername() {
-            const newUsername = usernameInput.value.trim();
-            if (!newUsername) return;
-
-            const message = {
-                type: 'username',
-                username: newUsername
-            };
-            ws.send(JSON.stringify(message));
-            usernameInput.value = '';
-        }
-
-        // Clear canvas functionality
-        clearButton.addEventListener('click', () => {
-            clearCanvas();
-            // Broadcast clear command
-            ws.send(JSON.stringify({
-                type: 'clear'
-            }));
-        });
-
-        // Handle WebSocket connection status
-        ws.onopen = () => {
-            console.log('Connected to server');
-        };
-
-        ws.onerror = (error) => {
-            console.error('WebSocket error:', error);
-        };
-
-        ws.onclose = () => {
-            console.log('Disconnected from server');
-        };
+        // Initial WebSocket connection
+        connectWebSocket();
     </script>
 </body>
 </html>
