@@ -3,7 +3,7 @@ services:
   - name: web
     git:
       branch: main
-      repo_clone_url: ${YOUR_GITHUB_REPO_URL}
+      repo_clone_url: ${https://github.com/orozcoc78/draw_and_talk}
     build_command: pip install -r requirements.txt
     run_command: python app.py
     envs:
