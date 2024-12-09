@@ -1,0 +1,15 @@
+name: drawing-chat
+services:
+  - name: web
+    git:
+      branch: main
+      repo_clone_url: ${YOUR_GITHUB_REPO_URL}
+    build_command: pip install -r requirements.txt
+    run_command: python app.py
+    envs:
+      - key: FLASK_APP
+        value: app.py
+      - key: FLASK_ENV
+        value: production
+    instance_size_slug: basic-xxs
+    http_port: 5000

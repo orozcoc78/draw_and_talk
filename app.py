@@ -2,6 +2,7 @@ from flask import Flask, render_template
 from flask_sock import Sock
 import uuid
 import json
+import os
 
 app = Flask(__name__)
 sock = Sock(app)
@@ -87,5 +88,5 @@ def broadcast(message, sender_id=None):
                 del clients[client_id]
 
 if __name__ == '__main__':
-    # Modified to listen on all interfaces
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    port = int(os.getenv('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
