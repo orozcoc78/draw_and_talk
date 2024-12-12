@@ -3,7 +3,6 @@ from flask_sock import Sock
 import uuid
 import json
 import os
-import secrets
 
 app = Flask(__name__)
 sock = Sock(app)
@@ -15,7 +14,7 @@ clients = {}
 
 def generate_room_code():
     """Generate a 6-character alphanumeric room code"""
-    return secrets.token_urlsafe(4)[:6].upper()
+    return uuid.uuid4().hex[:6].upper()
 
 @app.route('/')
 def home():
@@ -32,6 +31,7 @@ def create_room():
         'clients': {},
         'canvas_state': []  # Store canvas state for late joiners
     }
+    
     return jsonify({
         'success': True,
         'room_code': room_code
@@ -97,12 +97,15 @@ def websocket(ws, room_code):
                     }, None, room_code)
                 
                 elif message['type'] == 'draw':
+                    # Store drawing data
+                    stroke_data = message['data']
+                    rooms[room_code]['canvas_state'].append(stroke_data)
+                    
+                    # Broadcast to all clients in room (including sender for confirmation)
                     broadcast_to_room({
                         'type': 'draw',
-                        'data': message['data']
-                    }, client_id, room_code)
-                    # Store in canvas state
-                    rooms[room_code]['canvas_state'].append(message['data'])
+                        'data': stroke_data
+                    }, None, room_code)
                 
                 elif message['type'] == 'clear_canvas':
                     rooms[room_code]['canvas_state'] = []

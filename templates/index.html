@@ -20,7 +20,6 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
 
-        /* Room Selection Screen */
         #room-selection {
             text-align: center;
             margin-bottom: 20px;
@@ -51,7 +50,6 @@
             background-color: #f8f9fa;
         }
 
-        /* Main Content */
         #main-content {
             display: none;
         }
@@ -89,7 +87,6 @@
             background: #e9ecef;
         }
 
-        /* Common Input Styles */
         .input-container {
             display: flex;
             gap: 10px;
@@ -130,31 +127,10 @@
             text-align: center;
             margin: 10px 0;
         }
-
-        /* Controls Section */
-        .controls {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 15px;
-        }
-
-        .control-btn {
-            padding: 8px 16px;
-            background: #6c757d;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-
-        .control-btn:hover {
-            background: #5a6268;
-        }
     </style>
 </head>
 <body>
     <div class="container">
-        <!-- Room Selection Screen -->
         <div id="room-selection">
             <h1>Drawing Chat Rooms</h1>
             <div class="room-options">
@@ -175,7 +151,6 @@
             <div id="error-message" class="error-message"></div>
         </div>
 
-        <!-- Main Content (Drawing & Chat) -->
         <div id="main-content">
             <div id="current-room" class="room-code"></div>
             <canvas id="canvas" width="956" height="500"></canvas>
@@ -261,9 +236,9 @@
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = `${protocol}//${window.location.host}/ws/room/${currentRoom}`;
             
+            console.log('Connecting to WebSocket at:', wsUrl);
             ws = new WebSocket(wsUrl);
             
-            // Show main content and hide room selection
             roomSelection.style.display = 'none';
             mainContent.style.display = 'block';
             
@@ -432,7 +407,6 @@
             usernameBtn.addEventListener('click', changeUsername);
         }
 
-        // Helper Functions
         function handleError(message) {
             errorMessage.textContent = message;
             roomSelection.style.display = 'block';
