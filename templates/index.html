@@ -3,122 +3,306 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Drawing Chat</title>
+    <title>Drawing Chat Rooms</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            max-width: 800px;
+            max-width: 1000px;
             margin: 0 auto;
             padding: 20px;
+            background-color: #f5f5f5;
         }
+
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        /* Room Selection Screen */
+        #room-selection {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        #room-selection h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+
+        .room-options {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin-bottom: 30px;
+        }
+
+        .room-option {
+            padding: 20px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .room-option:hover {
+            border-color: #007bff;
+            background-color: #f8f9fa;
+        }
+
+        /* Main Content */
+        #main-content {
+            display: none;
+        }
+
         #canvas {
-            border: 1px solid #ccc;
+            border: 2px solid #ddd;
+            border-radius: 4px;
             background: white;
-            margin-bottom: 10px;
+            margin-bottom: 20px;
+            cursor: crosshair;
         }
+
         #chat-messages {
             height: 200px;
-            border: 1px solid #ccc;
-            overflow-y: scroll;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            overflow-y: auto;
             padding: 10px;
             margin-bottom: 10px;
-            background: #f9f9f9;
+            background: #fafafa;
         }
+
+        .message {
+            margin: 5px 0;
+            padding: 5px;
+            border-radius: 4px;
+        }
+
+        .system-message {
+            color: #666;
+            font-style: italic;
+        }
+
+        .user-message {
+            background: #e9ecef;
+        }
+
+        /* Common Input Styles */
         .input-container {
             display: flex;
             gap: 10px;
-            margin-bottom: 10px;
+            margin-bottom: 15px;
         }
+
         input {
-            padding: 5px;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
             flex-grow: 1;
         }
+
         button {
-            padding: 5px 15px;
+            padding: 8px 16px;
             background: #007bff;
             color: white;
             border: none;
+            border-radius: 4px;
             cursor: pointer;
+            transition: background-color 0.3s ease;
         }
+
         button:hover {
             background: #0056b3;
+        }
+
+        .room-code {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #007bff;
+            margin: 10px 0;
+            text-align: center;
+        }
+
+        .error-message {
+            color: #dc3545;
+            text-align: center;
+            margin: 10px 0;
+        }
+
+        /* Controls Section */
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .control-btn {
+            padding: 8px 16px;
+            background: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .control-btn:hover {
+            background: #5a6268;
         }
     </style>
 </head>
 <body>
-    <canvas id="canvas" width="800" height="400"></canvas>
-    
-    <div class="input-container">
-        <button id="clear-btn">Clear Canvas</button>
-    </div>
+    <div class="container">
+        <!-- Room Selection Screen -->
+        <div id="room-selection">
+            <h1>Drawing Chat Rooms</h1>
+            <div class="room-options">
+                <div class="room-option" id="create-room-option">
+                    <h3>Create Room</h3>
+                    <p>Start a new drawing session</p>
+                    <button id="create-room-btn">Create Room</button>
+                </div>
+                <div class="room-option" id="join-room-option">
+                    <h3>Join Room</h3>
+                    <div class="input-container">
+                        <input type="text" id="room-code-input" placeholder="Enter Room Code" maxlength="6">
+                        <button id="join-room-btn">Join Room</button>
+                    </div>
+                </div>
+            </div>
+            <div id="room-code-display" class="room-code"></div>
+            <div id="error-message" class="error-message"></div>
+        </div>
 
-    <div id="chat-messages"></div>
-    
-    <div class="input-container">
-        <input type="text" id="message-input" placeholder="Type a message...">
-        <button id="send-btn">Send</button>
-    </div>
+        <!-- Main Content (Drawing & Chat) -->
+        <div id="main-content">
+            <div id="current-room" class="room-code"></div>
+            <canvas id="canvas" width="956" height="500"></canvas>
+            
+            <div class="controls">
+                <button id="clear-btn" class="control-btn">Clear Canvas</button>
+            </div>
 
-    <div class="input-container">
-        <input type="text" id="username-input" placeholder="New username">
-        <button id="username-btn">Change Username</button>
+            <div id="chat-messages"></div>
+            
+            <div class="input-container">
+                <input type="text" id="message-input" placeholder="Type a message...">
+                <button id="send-btn">Send</button>
+            </div>
+
+            <div class="input-container">
+                <input type="text" id="username-input" placeholder="New username">
+                <button id="username-btn">Change Username</button>
+            </div>
+        </div>
     </div>
 
     <script>
         let ws;
+        let currentRoom = null;
         
+        // Room Management Elements
+        const roomSelection = document.getElementById('room-selection');
+        const mainContent = document.getElementById('main-content');
+        const createRoomBtn = document.getElementById('create-room-btn');
+        const joinRoomBtn = document.getElementById('join-room-btn');
+        const roomCodeInput = document.getElementById('room-code-input');
+        const roomCodeDisplay = document.getElementById('room-code-display');
+        const currentRoomDisplay = document.getElementById('current-room');
+        const errorMessage = document.getElementById('error-message');
+
+        // Create Room Handler
+        createRoomBtn.addEventListener('click', async () => {
+            try {
+                const response = await fetch('/api/rooms/create');
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentRoom = data.room_code;
+                    roomCodeDisplay.textContent = `Room Code: ${currentRoom}`;
+                    currentRoomDisplay.textContent = `Room: ${currentRoom}`;
+                    connectWebSocket();
+                } else {
+                    errorMessage.textContent = data.message || 'Error creating room';
+                }
+            } catch (error) {
+                errorMessage.textContent = 'Error creating room. Please try again.';
+            }
+        });
+
+        // Join Room Handler
+        joinRoomBtn.addEventListener('click', async () => {
+            const roomCode = roomCodeInput.value.trim().toUpperCase();
+            if (!roomCode) {
+                errorMessage.textContent = 'Please enter a room code';
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/rooms/join/${roomCode}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentRoom = roomCode;
+                    currentRoomDisplay.textContent = `Room: ${currentRoom}`;
+                    connectWebSocket();
+                } else {
+                    errorMessage.textContent = data.message || 'Invalid room code';
+                }
+            } catch (error) {
+                errorMessage.textContent = 'Error joining room. Please try again.';
+            }
+        });
+
         function connectWebSocket() {
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${protocol}//${window.location.host}/ws`;
+            if (!currentRoom) return;
             
-            console.log('Connecting to WebSocket at:', wsUrl);
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws/room/${currentRoom}`;
+            
             ws = new WebSocket(wsUrl);
             
-            const canvas = document.getElementById('canvas');
-            const ctx = canvas.getContext('2d');
-            const chatMessages = document.getElementById('chat-messages');
-            const messageInput = document.getElementById('message-input');
-            const sendButton = document.getElementById('send-btn');
-            const usernameInput = document.getElementById('username-input');
-            const usernameButton = document.getElementById('username-btn');
-            const clearButton = document.getElementById('clear-btn');
+            // Show main content and hide room selection
+            roomSelection.style.display = 'none';
+            mainContent.style.display = 'block';
+            
+            setupWebSocketHandlers();
+            setupDrawing();
+            setupChat();
+        }
 
-            // Drawing variables
-            let isDrawing = false;
-            let lastX = 0;
-            let lastY = 0;
-
-            // Set up canvas
-            ctx.strokeStyle = '#000';
-            ctx.lineWidth = 2;
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-
-            // WebSocket message handling
+        function setupWebSocketHandlers() {
             ws.onmessage = (event) => {
                 try {
-                    const { type, data } = JSON.parse(event.data);
+                    const data = JSON.parse(event.data);
                     
-                    if (typeof data === 'string' && data.startsWith('[')) {
-                        // Chat message
-                        const messageDiv = document.createElement('div');
-                        messageDiv.textContent = data;
-                        chatMessages.appendChild(messageDiv);
-                        chatMessages.scrollTop = chatMessages.scrollHeight;
-                    } else if (data.type === 'draw') {
-                        // Handle drawing data from other users
-                        const { x, y, isStarting } = data;
-                        
-                        if (isStarting) {
-                            ctx.beginPath();
-                            ctx.moveTo(x, y);
-                        } else {
-                            ctx.lineTo(x, y);
-                            ctx.stroke();
-                        }
-                    } else if (data.type === 'clear') {
-                        // Clear canvas command from other users
-                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    switch (data.type) {
+                        case 'error':
+                            handleError(data.message);
+                            break;
+                        case 'canvas_state':
+                            restoreCanvasState(data.data);
+                            break;
+                        case 'draw':
+                            handleDrawData(data.data);
+                            break;
+                        case 'clear_canvas':
+                            clearCanvas();
+                            addSystemMessage(`${data.username} cleared the canvas`);
+                            break;
+                        case 'chat':
+                            addChatMessage(data.username, data.message);
+                            break;
+                        case 'user_joined':
+                            addSystemMessage(`${data.username} joined the room`);
+                            break;
+                        case 'user_left':
+                            addSystemMessage(`${data.username} left the room`);
+                            break;
+                        case 'system_message':
+                            addSystemMessage(data.message);
+                            break;
                     }
                 } catch (error) {
                     console.error('Error processing message:', error);
@@ -126,31 +310,46 @@
             };
 
             ws.onclose = () => {
-                console.log('WebSocket connection closed. Attempting to reconnect...');
-                setTimeout(connectWebSocket, 3000);
+                addSystemMessage('Connection lost. Reconnecting...');
+                setTimeout(() => connectWebSocket(), 3000);
             };
 
             ws.onerror = (error) => {
                 console.error('WebSocket error:', error);
+                handleError('Connection error');
             };
+        }
 
-            // Drawing event listeners
+        function setupDrawing() {
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            const clearBtn = document.getElementById('clear-btn');
+            
+            let isDrawing = false;
+            let lastX = 0;
+            let lastY = 0;
+
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
             function startDrawing(e) {
                 isDrawing = true;
                 const rect = canvas.getBoundingClientRect();
                 lastX = e.clientX - rect.left;
                 lastY = e.clientY - rect.top;
 
-                // Start new path locally
                 ctx.beginPath();
                 ctx.moveTo(lastX, lastY);
 
-                // Send starting point
                 ws.send(JSON.stringify({
                     type: 'draw',
-                    x: lastX,
-                    y: lastY,
-                    isStarting: true
+                    data: {
+                        x: lastX,
+                        y: lastY,
+                        isStarting: true
+                    }
                 }));
             }
 
@@ -161,16 +360,16 @@
                 const currentX = e.clientX - rect.left;
                 const currentY = e.clientY - rect.top;
 
-                // Draw line locally
                 ctx.lineTo(currentX, currentY);
                 ctx.stroke();
 
-                // Send drawing data
                 ws.send(JSON.stringify({
                     type: 'draw',
-                    x: currentX,
-                    y: currentY,
-                    isStarting: false
+                    data: {
+                        x: currentX,
+                        y: currentY,
+                        isStarting: false
+                    }
                 }));
 
                 lastX = currentX;
@@ -184,58 +383,102 @@
                 }
             }
 
-            // Drawing event listeners
             canvas.addEventListener('mousedown', startDrawing);
             canvas.addEventListener('mousemove', draw);
             canvas.addEventListener('mouseup', stopDrawing);
             canvas.addEventListener('mouseout', stopDrawing);
 
-            // Chat functionality
-            function sendMessage() {
-                const content = messageInput.value.trim();
-                if (!content || ws.readyState !== WebSocket.OPEN) return;
+            clearBtn.addEventListener('click', () => {
+                clearCanvas();
+                ws.send(JSON.stringify({ type: 'clear_canvas' }));
+            });
+        }
 
-                const message = {
-                    type: 'text',
-                    content: content
-                };
-                ws.send(JSON.stringify(message));
+        function setupChat() {
+            const messageInput = document.getElementById('message-input');
+            const sendBtn = document.getElementById('send-btn');
+            const usernameInput = document.getElementById('username-input');
+            const usernameBtn = document.getElementById('username-btn');
+
+            function sendMessage() {
+                const message = messageInput.value.trim();
+                if (!message) return;
+
+                ws.send(JSON.stringify({
+                    type: 'chat',
+                    message: message
+                }));
+
                 messageInput.value = '';
             }
 
-            sendButton.addEventListener('click', sendMessage);
+            function changeUsername() {
+                const newUsername = usernameInput.value.trim();
+                if (!newUsername) return;
+
+                ws.send(JSON.stringify({
+                    type: 'username_change',
+                    username: newUsername
+                }));
+
+                usernameInput.value = '';
+            }
+
+            sendBtn.addEventListener('click', sendMessage);
             messageInput.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') sendMessage();
             });
 
-            // Username change functionality
-            function changeUsername() {
-                const newUsername = usernameInput.value.trim();
-                if (!newUsername || ws.readyState !== WebSocket.OPEN) return;
-
-                const message = {
-                    type: 'username',
-                    username: newUsername
-                };
-                ws.send(JSON.stringify(message));
-                usernameInput.value = '';
-            }
-
-            usernameButton.addEventListener('click', changeUsername);
-
-            // Clear canvas functionality
-            clearButton.addEventListener('click', () => {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                if (ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({
-                        type: 'clear'
-                    }));
-                }
-            });
+            usernameBtn.addEventListener('click', changeUsername);
         }
 
-        // Initial WebSocket connection
-        connectWebSocket();
+        // Helper Functions
+        function handleError(message) {
+            errorMessage.textContent = message;
+            roomSelection.style.display = 'block';
+            mainContent.style.display = 'none';
+        }
+
+        function clearCanvas() {
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function handleDrawData(data) {
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            if (data.isStarting) {
+                ctx.beginPath();
+                ctx.moveTo(data.x, data.y);
+            } else {
+                ctx.lineTo(data.x, data.y);
+                ctx.stroke();
+            }
+        }
+
+        function restoreCanvasState(state) {
+            state.forEach(data => handleDrawData(data));
+        }
+
+        function addChatMessage(username, message) {
+            const chatMessages = document.getElementById('chat-messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message user-message';
+            messageDiv.textContent = `${username}: ${message}`;
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function addSystemMessage(message) {
+            const chatMessages = document.getElementById('chat-messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message system-message';
+            messageDiv.textContent = message;
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
     </script>
 </body>
 </html>

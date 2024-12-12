@@ -1,91 +1,159 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, jsonify
 from flask_sock import Sock
 import uuid
 import json
 import os
+import secrets
 
 app = Flask(__name__)
 sock = Sock(app)
 
+# Store room information
+rooms = {}
 # Store client information
 clients = {}
+
+def generate_room_code():
+    """Generate a 6-character alphanumeric room code"""
+    return secrets.token_urlsafe(4)[:6].upper()
 
 @app.route('/')
 def home():
     return render_template('index.html')
 
-@sock.route('/ws')
-def websocket(ws):
+@app.route('/api/rooms/create')
+def create_room():
+    """Create a new room and return the room code"""
+    room_code = generate_room_code()
+    while room_code in rooms:  # Ensure unique code
+        room_code = generate_room_code()
+    
+    rooms[room_code] = {
+        'clients': {},
+        'canvas_state': []  # Store canvas state for late joiners
+    }
+    return jsonify({
+        'success': True,
+        'room_code': room_code
+    })
+
+@app.route('/api/rooms/join/<room_code>')
+def join_room(room_code):
+    """Validate if a room exists"""
+    if room_code in rooms:
+        return jsonify({
+            'success': True,
+            'active_users': len(rooms[room_code]['clients'])
+        })
+    return jsonify({
+        'success': False,
+        'message': 'Room not found'
+    })
+
+@sock.route('/ws/room/<room_code>')
+def websocket(ws, room_code):
+    """Handle WebSocket connections for a specific room"""
+    if room_code not in rooms:
+        ws.send(json.dumps({
+            'type': 'error',
+            'message': 'Room not found'
+        }))
+        return
+    
     client_id = str(uuid.uuid4())
     clients[client_id] = {
         'websocket': ws,
-        'username': f'User_{client_id[:8]}'
+        'username': f'User_{client_id[:8]}',
+        'room': room_code
     }
+    rooms[room_code]['clients'][client_id] = clients[client_id]
     
     try:
-        broadcast(f"[SERVER] {clients[client_id]['username']} joined the chat", client_id)
+        # Send current canvas state to new user
+        if rooms[room_code]['canvas_state']:
+            ws.send(json.dumps({
+                'type': 'canvas_state',
+                'data': rooms[room_code]['canvas_state']
+            }))
+        
+        broadcast_to_room(
+            {'type': 'user_joined', 'username': clients[client_id]['username']},
+            None,
+            room_code
+        )
         
         while True:
             try:
-                raw_message = ws.receive()
-                try:
-                    message = json.loads(raw_message)
-                except json.JSONDecodeError:
-                    message = {'type': 'text', 'content': raw_message}
+                message = json.loads(ws.receive())
                 
-                if message.get('type') == 'username':
-                    new_username = message.get('username', '').strip()
+                if message['type'] == 'username_change':
                     old_username = clients[client_id]['username']
+                    new_username = message['username']
                     clients[client_id]['username'] = new_username
-                    broadcast(f"[SERVER] {old_username} changed name to {new_username}", client_id)
+                    rooms[room_code]['clients'][client_id]['username'] = new_username
+                    broadcast_to_room({
+                        'type': 'system_message',
+                        'message': f"{old_username} changed name to {new_username}"
+                    }, None, room_code)
                 
-                elif message.get('type') == 'draw':
-                    broadcast_to_others(message, client_id)
+                elif message['type'] == 'draw':
+                    broadcast_to_room({
+                        'type': 'draw',
+                        'data': message['data']
+                    }, client_id, room_code)
+                    # Store in canvas state
+                    rooms[room_code]['canvas_state'].append(message['data'])
                 
-                elif message.get('type') == 'clear':
-                    broadcast_to_others({'type': 'clear'}, client_id)
-                    broadcast(f"[SERVER] {clients[client_id]['username']} cleared the canvas", client_id)
+                elif message['type'] == 'clear_canvas':
+                    rooms[room_code]['canvas_state'] = []
+                    broadcast_to_room({
+                        'type': 'clear_canvas',
+                        'username': clients[client_id]['username']
+                    }, None, room_code)
                 
-                elif message.get('type') == 'text':
-                    broadcast(f"[{clients[client_id]['username']}] {message['content']}", client_id)
+                elif message['type'] == 'chat':
+                    broadcast_to_room({
+                        'type': 'chat',
+                        'username': clients[client_id]['username'],
+                        'message': message['message']
+                    }, None, room_code)
                     
             except Exception as e:
-                print(f"Error receiving message: {e}")
+                print(f"Error handling message: {e}")
                 break
                 
     except Exception as e:
-        print(f"Error in websocket handler: {e}")
+        print(f"WebSocket error: {e}")
     finally:
         if client_id in clients:
-            broadcast(f"[SERVER] {clients[client_id]['username']} left the chat", client_id)
+            broadcast_to_room({
+                'type': 'user_left',
+                'username': clients[client_id]['username']
+            }, None, room_code)
+            
+            # Cleanup
+            del rooms[room_code]['clients'][client_id]
             del clients[client_id]
+            
+            # Remove room if empty
+            if not rooms[room_code]['clients']:
+                del rooms[room_code]
 
-def broadcast_to_others(message, sender_id):
-    """Broadcast to all clients except the sender"""
-    for client_id, client_info in list(clients.items()):
-        if client_id != sender_id:
-            try:
-                client_info['websocket'].send(json.dumps({
-                    'type': 'received',
-                    'data': message
-                }))
-            except Exception:
-                if client_id in clients:
-                    del clients[client_id]
-
-def broadcast(message, sender_id=None):
-    """Broadcast text message to all clients"""
-    for client_id, client_info in list(clients.items()):
+def broadcast_to_room(message, sender_id, room_code):
+    """Send message to all clients in a room"""
+    if room_code not in rooms:
+        return
+        
+    for client_id, client_info in list(rooms[room_code]['clients'].items()):
+        if sender_id and client_id == sender_id:
+            continue
         try:
-            msg_type = 'sent' if client_id == sender_id else 'received'
-            client_info['websocket'].send(json.dumps({
-                'type': msg_type,
-                'data': message
-            }))
+            client_info['websocket'].send(json.dumps(message))
         except Exception:
+            # Clean up disconnected client
+            del rooms[room_code]['clients'][client_id]
             if client_id in clients:
                 del clients[client_id]
 
 if __name__ == '__main__':
-    # port = int(os.getenv('PORT', 8080))
     app.run(host='0.0.0.0', port=5000)
