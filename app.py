@@ -29,7 +29,7 @@ def home():
 def create_room():
     """Create a new room and return the room code"""
     room_code = generate_room_code()
-    while room_code in rooms:  # Ensure unique code
+    while room_code in rooms:  # ensure unique 
         room_code = generate_room_code()
     
     rooms[room_code] = {
@@ -110,7 +110,7 @@ def websocket(ws, room_code):
                     stroke_data = message['data']
                     rooms[room_code]['canvas_state'].append(stroke_data)
                     
-                    # Broadcast to all clients in room (including sender for confirmation)
+                    # Broadcast to all clients in room (including sender)
                     broadcast_to_room({
                         'type': 'draw',
                         'data': stroke_data
@@ -164,7 +164,7 @@ def broadcast_to_room(message, sender_id, room_code):
         try:
             client_info['websocket'].send(json.dumps(message))
         except Exception:
-            # Clean up disconnected client
+            # Clean up disconnected
             del rooms[room_code]['clients'][client_id]
             if client_id in clients:
                 del clients[client_id]
