@@ -12,13 +12,18 @@ rooms = {}
 # Store client information
 clients = {}
 
+
 def generate_room_code():
     """Generate a 6-character alphanumeric room code"""
     return uuid.uuid4().hex[:6].upper()
 
+
+
 @app.route('/')
 def home():
     return render_template('index.html')
+
+
 
 @app.route('/api/rooms/create')
 def create_room():
@@ -37,6 +42,8 @@ def create_room():
         'room_code': room_code
     })
 
+
+
 @app.route('/api/rooms/join/<room_code>')
 def join_room(room_code):
     """Validate if a room exists"""
@@ -49,6 +56,8 @@ def join_room(room_code):
         'success': False,
         'message': 'Room not found'
     })
+
+
 
 @sock.route('/ws/room/<room_code>')
 def websocket(ws, room_code):
@@ -141,6 +150,8 @@ def websocket(ws, room_code):
             # Remove room if empty
             if not rooms[room_code]['clients']:
                 del rooms[room_code]
+
+
 
 def broadcast_to_room(message, sender_id, room_code):
     """Send message to all clients in a room"""
