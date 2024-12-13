@@ -2,7 +2,7 @@
 
 This project allows for a user to create a website for collaboration by multiple users
 
-All you have to do is start up a DigitalOcean Droplet and pull this repo in. Once you have done that, enter fthe folder and build it with Docker Compose. Once Docker Compose is running, going to the ip that belong to the droplet should give you the following.
+All you have to do is start up a DigitalOcean Droplet and pull this repo in. Once you have done that, enter the folder and build it with Docker Compose. Once Docker Compose is running, going to the IP that belong to the droplet should give you the following.
 
 ![Welcome screen](welcome_screenshot.png)
 
