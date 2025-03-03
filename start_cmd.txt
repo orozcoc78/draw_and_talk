@@ -1,0 +1,10 @@
+cd draw_and_talk
+docker-compose up --build -d
+docker-compose ps
+
+#if it no work
+docker-compose down
+docker system prune -a -f
+docker-compose up --build -d
+
+#make sure to pull if there is any changes to the repo
